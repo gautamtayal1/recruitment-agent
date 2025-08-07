@@ -33,8 +33,9 @@ openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Initialize Twilio client
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# Store active sessions
+# Store active sessions and conversation control
 sessions = {}
+conversation_control = {}  # Store conversation state for manual control
 
 # Create FastAPI app
 app = FastAPI()
@@ -42,7 +43,7 @@ app = FastAPI()
 # Add CORS middleware for frontend
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+    allow_origins=["http://localhost:3000", "http://127.0.0.1:3000", "http://localhost:3002", "http://127.0.0.1:3002"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -69,8 +70,34 @@ def validate_twilio_signature(signature, url, auth_token):
         print(f"Signature validation error: {e}")
         return False
 
-async def ai_response(messages):
-    """Get a response from OpenAI API"""
+async def ai_response(messages, call_sid=None):
+    """Get a response from OpenAI API or manual control"""
+    
+    # Check if this call is under manual control
+    if call_sid and call_sid in conversation_control:
+        control = conversation_control[call_sid]
+        
+        # If there's a pending response from the operator, use it
+        if control.get('pending_response'):
+            response = control['pending_response']
+            control['pending_response'] = None
+            control['waiting_for_response'] = False
+            return response
+        
+        # If waiting for operator response, store the user message and return holding response
+        if control.get('waiting_for_response'):
+            return "Please hold on while I check that for you..."
+        
+        # Store user input for operator to see
+        if messages and len(messages) > 0:
+            user_message = messages[-1].get('content', '')
+            control['last_user_message'] = user_message
+            control['waiting_for_response'] = True
+            control['conversation_log'] = messages
+            
+        return "Thank you for that information. Let me process that for you..."
+    
+    # Default AI response
     completion = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=messages
@@ -109,6 +136,54 @@ async def outbound_twiml_endpoint():
     
     return Response(content=xml_response, media_type="text/xml")
 
+@app.post("/enable-control/{call_sid}")
+async def enable_manual_control(call_sid: str):
+    """Enable manual control for a specific call"""
+    conversation_control[call_sid] = {
+        'waiting_for_response': False,
+        'last_user_message': '',
+        'pending_response': None,
+        'conversation_log': [],
+        'enabled': True
+    }
+    return {"success": True, "message": f"Manual control enabled for call {call_sid}"}
+
+@app.get("/get-conversation/{call_sid}")
+async def get_conversation_state(call_sid: str):
+    """Get the current conversation state for a call"""
+    if call_sid in conversation_control:
+        control = conversation_control[call_sid]
+        return {
+            "success": True,
+            "call_sid": call_sid,
+            "waiting_for_response": control.get('waiting_for_response', False),
+            "last_user_message": control.get('last_user_message', ''),
+            "conversation_log": control.get('conversation_log', [])
+        }
+    return {"success": False, "message": "Call not found or not under manual control"}
+
+@app.post("/send-response/{call_sid}")
+async def send_manual_response(call_sid: str, response: str = Form(...)):
+    """Send a manual response for a call"""
+    if call_sid in conversation_control:
+        conversation_control[call_sid]['pending_response'] = response
+        return {"success": True, "message": "Response queued"}
+    return {"success": False, "message": "Call not found or not under manual control"}
+
+@app.get("/active-calls")
+async def get_active_calls():
+    """Get all active calls under manual control"""
+    active_calls = []
+    for call_sid, control in conversation_control.items():
+        if control.get('enabled'):
+            active_calls.append({
+                "call_sid": call_sid,
+                "waiting_for_response": control.get('waiting_for_response', False),
+                "last_user_message": control.get('last_user_message', ''),
+                "has_pending_response": bool(control.get('pending_response'))
+            })
+    return {"success": True, "active_calls": active_calls}
+
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
     """WebSocket endpoint for real-time communication with signature validation"""
@@ -146,7 +221,7 @@ async def websocket_endpoint(websocket: WebSocket):
                 conversation = sessions[websocket.call_sid]
                 conversation.append({"role": "user", "content": message["voicePrompt"]})
                 
-                response = await ai_response(conversation)
+                response = await ai_response(conversation, websocket.call_sid)
                 conversation.append({"role": "assistant", "content": response})
                 
                 await websocket.send_text(
