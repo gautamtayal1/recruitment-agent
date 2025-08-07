@@ -28,7 +28,7 @@ async def make_outbound_call(phone_number: str = Form(...)):
         return {"success": False, "error": str(e)}
 
 @router.post("/outbound-twiml")
-async def outbound_twiml_endpoint():
+async def outbound_twiml_endpoint(interview_id: str = None):
     """TwiML for outbound calls - uses ConversationRelay with proper control"""
     xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
     <Response>

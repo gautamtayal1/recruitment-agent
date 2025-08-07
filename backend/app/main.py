@@ -5,10 +5,12 @@ Modular FastAPI application for JavaScript interview system
 import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.config import PORT
 from app.routes.call_routes import router as call_router
 from app.routes.interview_routes import router as interview_router
+from app.routes.setup_routes import router as setup_router
 from app.websocket.conversation_handler import handle_websocket_connection
 
 # Create FastAPI app
@@ -37,13 +39,18 @@ app.add_middleware(
 # Include routers
 app.include_router(call_router)
 app.include_router(interview_router)
+app.include_router(setup_router)
+
+# Mount static files
+app.mount("/static", StaticFiles(directory="static"), name="static")
 
 @app.get("/")
 async def root():
     return {
         "message": "JavaScript Interview System API",
         "status": "running",
-        "version": "1.0.0"
+        "version": "1.0.0",
+        "setup_page": "Go to /setup to configure interviews"
     }
 
 @app.get("/health")

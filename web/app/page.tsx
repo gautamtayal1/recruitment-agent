@@ -98,6 +98,14 @@ export default function Home() {
             <p className="text-gray-600">
               Make outbound calls to candidates for recruitment screening
             </p>
+            <div className="mt-4">
+              <a 
+                href="/setup" 
+                className="inline-block bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium"
+              >
+                ⚙️ Custom Interview Setup
+              </a>
+            </div>
           </div>
 
           <div className="space-y-6">

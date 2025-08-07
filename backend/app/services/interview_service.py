@@ -8,19 +8,35 @@ from app.services.scoring_service import score_answer
 # Store interview sessions
 interview_sessions: Dict[str, Dict[str, Any]] = {}
 
-def initialize_interview(call_sid: str) -> str:
+# Store custom interview configurations
+custom_configs: Dict[str, Dict[str, Any]] = {}
+
+def set_interview_config(interview_id: str, config: Dict[str, Any]):
+    """Set custom interview configuration"""
+    custom_configs[interview_id] = config
+
+def initialize_interview(call_sid: str, interview_id: str = None) -> str:
     """Initialize a new interview session"""
-    question = random.choice(JS_QUESTIONS)
+    # Get custom configuration if available
+    config = custom_configs.get(interview_id, {}) if interview_id else {}
+    
+    # Use custom questions if available, otherwise default to JS questions
+    questions_pool = config.get('questions', JS_QUESTIONS)
+    language = config.get('language', 'JavaScript')
+    
+    question = random.choice(questions_pool)
     interview_sessions[call_sid] = {
         'questions_asked': 1,
         'total_score': 0,
         'current_question': question,
         'used_questions': [question],
         'scores': [],
-        'waiting_for_answer': True
+        'waiting_for_answer': True,
+        'config': config,
+        'interview_id': interview_id
     }
     
-    welcome_message = "Welcome to your JavaScript technical interview! Here's how it works: I will ask you 10 random JavaScript questions. Please answer each question to the best of your ability. Take your time to think before answering. Let's begin! Question 1: {question}"
+    welcome_message = f"Welcome to your {language} technical interview! Here's how it works: I will ask you 10 random {language} questions. Please answer each question to the best of your ability. Take your time to think before answering. Let's begin! Question 1: {{question}}"
     return welcome_message.format(question=question)
 
 async def process_answer(call_sid: str, user_message: str) -> str:
@@ -47,8 +63,18 @@ async def process_answer(call_sid: str, user_message: str) -> str:
             avg_score = session['total_score'] / 10
             total_percentage = (session['total_score'] / 100) * 100
             
-            if total_percentage >= 50:
+            # Get custom pass percentage or default to 50%
+            config = session.get('config', {})
+            pass_percentage = config.get('passPercentage', 50)
+            
+            if total_percentage >= pass_percentage:
                 final_message = f"Thank you! That completes your interview. Congratulations! You've performed well. You will receive a link to book a final interview within 24 hours. Goodbye!"
+                
+                # Send email if candidate passes and email is available
+                candidate_email = config.get('email')
+                if candidate_email:
+                    # TODO: Send congratulations email with interview booking link
+                    print(f"Should send email to: {candidate_email}")
             else:
                 final_message = f"Unfortunately, you didn't clear the interview. Thank you for your time. Goodbye!"
             
@@ -57,7 +83,9 @@ async def process_answer(call_sid: str, user_message: str) -> str:
             return final_message
         
         # Ask next question
-        available_questions = [q for q in JS_QUESTIONS if q not in session['used_questions']]
+        config = session.get('config', {})
+        questions_pool = config.get('questions', JS_QUESTIONS)
+        available_questions = [q for q in questions_pool if q not in session['used_questions']]
         if available_questions:
             next_question = random.choice(available_questions)
             session['current_question'] = next_question

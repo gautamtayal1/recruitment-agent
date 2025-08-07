@@ -64,9 +64,12 @@ async def handle_websocket_connection(websocket: WebSocket):
                 print(f"Setup for call: {call_sid}")
                 websocket.call_sid = call_sid
                 
+                # Get interview_id from URL parameters if available
+                interview_id = None  # TODO: Extract from WebSocket URL or headers
+                
                 # NO SESSIONS - we control everything directly
                 # Immediately send OUR welcome message and first question
-                welcome_response = initialize_interview(call_sid)
+                welcome_response = initialize_interview(call_sid, interview_id)
                 await websocket.send_text(
                     json.dumps({
                         "type": "text", 
