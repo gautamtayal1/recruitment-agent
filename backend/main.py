@@ -33,9 +33,63 @@ openai = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 # Initialize Twilio client
 twilio_client = Client(TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN)
 
-# Store active sessions and conversation control
+# Store active sessions and interview state
 sessions = {}
-conversation_control = {}  # Store conversation state for manual control
+interview_sessions = {}  # Store interview progress for each call
+
+# JavaScript Interview Questions
+JS_QUESTIONS = [
+    "What is the difference between let, var, and const in JavaScript?",
+    "Explain event bubbling and event capturing in JavaScript.",
+    "What are closures in JavaScript and how do they work?",
+    "What is the difference between == and === in JavaScript?",
+    "Explain the concept of hoisting in JavaScript.",
+    "What are JavaScript promises and how do they work?",
+    "What is the difference between function declarations and function expressions?",
+    "Explain the 'this' keyword in JavaScript.",
+    "What are JavaScript prototypes and prototype chain?",
+    "What is event delegation in JavaScript?",
+    "Explain the difference between synchronous and asynchronous JavaScript.",
+    "What are JavaScript callbacks and callback hell?",
+    "What is the JavaScript event loop?",
+    "Explain the concept of scope in JavaScript.",
+    "What are JavaScript arrow functions and how are they different from regular functions?",
+    "What is destructuring in JavaScript?",
+    "Explain the concept of modules in JavaScript.",
+    "What are JavaScript generators?",
+    "What is the difference between null and undefined?",
+    "Explain the concept of inheritance in JavaScript.",
+    "What are JavaScript higher-order functions?",
+    "What is the difference between call, apply, and bind methods?",
+    "Explain the concept of currying in JavaScript.",
+    "What are JavaScript template literals?",
+    "What is the spread operator in JavaScript?",
+    "Explain the concept of debouncing and throttling.",
+    "What are JavaScript Web APIs?",
+    "What is the difference between localStorage and sessionStorage?",
+    "Explain the concept of CORS in JavaScript.",
+    "What are JavaScript regular expressions?",
+    "What is the difference between map, filter, and reduce methods?",
+    "Explain the concept of memoization in JavaScript.",
+    "What are JavaScript classes and how do they work?",
+    "What is the difference between setTimeout and setInterval?",
+    "Explain the concept of strict mode in JavaScript.",
+    "What are JavaScript symbols?",
+    "What is the difference between deep copy and shallow copy?",
+    "Explain the concept of JavaScript engines.",
+    "What are JavaScript iterators and iterables?",
+    "What is the difference between Object.freeze() and Object.seal()?",
+    "Explain the concept of JavaScript decorators.",
+    "What are JavaScript mixins?",
+    "What is the difference between function.call() and function.apply()?",
+    "Explain the concept of JavaScript modules (ES6 modules).",
+    "What are JavaScript getters and setters?",
+    "What is the difference between for...in and for...of loops?",
+    "Explain the concept of JavaScript error handling with try-catch.",
+    "What are JavaScript typed arrays?",
+    "What is the difference between Object.create() and new Object()?",
+    "Explain the concept of JavaScript weak references (WeakMap, WeakSet)."
+]
 
 # Create FastAPI app
 app = FastAPI()
@@ -70,39 +124,100 @@ def validate_twilio_signature(signature, url, auth_token):
         print(f"Signature validation error: {e}")
         return False
 
+async def score_answer(question: str, answer: str) -> int:
+    """Score an answer using OpenAI API"""
+    scoring_prompt = f"""
+    Please rate this JavaScript interview answer on a scale of 1-10, where:
+    1-3 = Poor (incorrect, incomplete, or demonstrates lack of understanding)
+    4-6 = Average (partially correct, basic understanding)
+    7-8 = Good (mostly correct, good understanding)
+    9-10 = Excellent (comprehensive, demonstrates deep understanding)
+
+    Question: {question}
+    
+    Answer: {answer}
+    
+    Please respond with only a number from 1-10, nothing else.
+    """
+    
+    try:
+        completion = openai.chat.completions.create(
+            model="gpt-4o-mini",
+            messages=[{"role": "user", "content": scoring_prompt}]
+        )
+        score_text = completion.choices[0].message.content.strip()
+        # Extract number from response
+        score = int(''.join(filter(str.isdigit, score_text)))
+        return max(1, min(10, score))  # Ensure score is between 1-10
+    except:
+        return 5  # Default score if API fails
+
 async def ai_response(messages, call_sid=None):
-    """Get a response from OpenAI API or manual control"""
+    """Handle JavaScript interview conversation"""
+    import random
     
-    # Check if this call is under manual control
-    if call_sid and call_sid in conversation_control:
-        control = conversation_control[call_sid]
+    if not call_sid or call_sid not in interview_sessions:
+        # Initialize new interview session
+        if call_sid:
+            interview_sessions[call_sid] = {
+                'questions_asked': 0,
+                'total_score': 0,
+                'current_question': None,
+                'used_questions': [],
+                'scores': [],
+                'waiting_for_answer': False
+            }
         
-        # If there's a pending response from the operator, use it
-        if control.get('pending_response'):
-            response = control['pending_response']
-            control['pending_response'] = None
-            control['waiting_for_response'] = False
-            return response
+        # Ask first question
+        question = random.choice(JS_QUESTIONS)
+        if call_sid:
+            interview_sessions[call_sid]['current_question'] = question
+            interview_sessions[call_sid]['used_questions'].append(question)
+            interview_sessions[call_sid]['waiting_for_answer'] = True
+            interview_sessions[call_sid]['questions_asked'] = 1
         
-        # If waiting for operator response, store the user message and return holding response
-        if control.get('waiting_for_response'):
-            return "Please hold on while I check that for you..."
+        return f"Hello! Welcome to your JavaScript technical interview. I'll ask you 10 random questions. Let's start with question 1: {question}"
+    
+    session = interview_sessions[call_sid]
+    user_message = messages[-1].get('content', '') if messages else ''
+    
+    # If we're waiting for an answer to current question
+    if session['waiting_for_answer'] and session['current_question']:
+        # Score the answer
+        score = await score_answer(session['current_question'], user_message)
+        session['scores'].append(score)
+        session['total_score'] += score
+        session['waiting_for_answer'] = False
         
-        # Store user input for operator to see
-        if messages and len(messages) > 0:
-            user_message = messages[-1].get('content', '')
-            control['last_user_message'] = user_message
-            control['waiting_for_response'] = True
-            control['conversation_log'] = messages
+        print(f"Question: {session['current_question']}")
+        print(f"Answer: {user_message}")
+        print(f"Score: {score}/10")
+        
+        # Check if interview is complete
+        if session['questions_asked'] >= 10:
+            avg_score = session['total_score'] / 10
+            return f"Thank you! That completes your interview. Your average score is {avg_score:.1f} out of 10. Individual scores were: {', '.join(map(str, session['scores']))}. We'll be in touch soon. Goodbye!"
+        
+        # Ask next question
+        available_questions = [q for q in JS_QUESTIONS if q not in session['used_questions']]
+        if available_questions:
+            next_question = random.choice(available_questions)
+            session['current_question'] = next_question
+            session['used_questions'].append(next_question)
+            session['waiting_for_answer'] = True
+            session['questions_asked'] += 1
             
-        return "Thank you for that information. Let me process that for you..."
+            return f"Great! Your score for that question was {score} out of 10. Here's question {session['questions_asked']}: {next_question}"
+        else:
+            # Fallback if we run out of questions
+            avg_score = session['total_score'] / len(session['scores'])
+            return f"That completes your interview! Your average score is {avg_score:.1f} out of 10. We'll be in touch soon."
     
-    # Default AI response
-    completion = openai.chat.completions.create(
-        model="gpt-4o-mini",
-        messages=messages
-    )
-    return completion.choices[0].message.content
+    # If user says something unexpected
+    if session['current_question']:
+        return f"Please answer the current question: {session['current_question']}"
+    else:
+        return "Let me ask you a JavaScript question. Please wait a moment."
 
 @app.post("/make-call")
 async def make_outbound_call(phone_number: str = Form(...)):
@@ -136,53 +251,40 @@ async def outbound_twiml_endpoint():
     
     return Response(content=xml_response, media_type="text/xml")
 
-@app.post("/enable-control/{call_sid}")
-async def enable_manual_control(call_sid: str):
-    """Enable manual control for a specific call"""
-    conversation_control[call_sid] = {
-        'waiting_for_response': False,
-        'last_user_message': '',
-        'pending_response': None,
-        'conversation_log': [],
-        'enabled': True
-    }
-    return {"success": True, "message": f"Manual control enabled for call {call_sid}"}
-
-@app.get("/get-conversation/{call_sid}")
-async def get_conversation_state(call_sid: str):
-    """Get the current conversation state for a call"""
-    if call_sid in conversation_control:
-        control = conversation_control[call_sid]
+@app.get("/interview-status/{call_sid}")
+async def get_interview_status(call_sid: str):
+    """Get the current interview status for a call"""
+    if call_sid in interview_sessions:
+        session = interview_sessions[call_sid]
         return {
             "success": True,
             "call_sid": call_sid,
-            "waiting_for_response": control.get('waiting_for_response', False),
-            "last_user_message": control.get('last_user_message', ''),
-            "conversation_log": control.get('conversation_log', [])
+            "questions_asked": session['questions_asked'],
+            "total_score": session['total_score'],
+            "average_score": session['total_score'] / max(1, len(session['scores'])),
+            "current_question": session['current_question'],
+            "scores": session['scores'],
+            "waiting_for_answer": session['waiting_for_answer']
         }
-    return {"success": False, "message": "Call not found or not under manual control"}
+    return {"success": False, "message": "Interview session not found"}
 
-@app.post("/send-response/{call_sid}")
-async def send_manual_response(call_sid: str, response: str = Form(...)):
-    """Send a manual response for a call"""
-    if call_sid in conversation_control:
-        conversation_control[call_sid]['pending_response'] = response
-        return {"success": True, "message": "Response queued"}
-    return {"success": False, "message": "Call not found or not under manual control"}
-
-@app.get("/active-calls")
-async def get_active_calls():
-    """Get all active calls under manual control"""
-    active_calls = []
-    for call_sid, control in conversation_control.items():
-        if control.get('enabled'):
-            active_calls.append({
-                "call_sid": call_sid,
-                "waiting_for_response": control.get('waiting_for_response', False),
-                "last_user_message": control.get('last_user_message', ''),
-                "has_pending_response": bool(control.get('pending_response'))
-            })
-    return {"success": True, "active_calls": active_calls}
+@app.post("/end-interview/{call_sid}")
+async def end_interview(call_sid: str):
+    """End interview session and get final results"""
+    if call_sid in interview_sessions:
+        session = interview_sessions[call_sid]
+        final_results = {
+            "call_sid": call_sid,
+            "questions_asked": session['questions_asked'],
+            "total_score": session['total_score'],
+            "average_score": session['total_score'] / max(1, len(session['scores'])),
+            "scores": session['scores']
+        }
+        # Clean up session
+        del interview_sessions[call_sid]
+        print(f"Interview ended for {call_sid}: {final_results}")
+        return {"success": True, "results": final_results}
+    return {"success": False, "message": "Interview session not found"}
 
 @app.websocket("/ws")
 async def websocket_endpoint(websocket: WebSocket):
@@ -240,9 +342,12 @@ async def websocket_endpoint(websocket: WebSocket):
                 print(f"Unknown message type received: {message['type']}")
                 
     except WebSocketDisconnect:
-        print("WebSocket connection closed")
+        print(f"WebSocket connection closed for call: {call_sid}")
         if call_sid:
             sessions.pop(call_sid, None)
+            # Mark call as ended in conversation control
+            if call_sid in conversation_control:
+                conversation_control[call_sid]['enabled'] = False
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=PORT)

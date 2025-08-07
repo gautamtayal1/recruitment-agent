@@ -7,10 +7,7 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [callHistory, setCallHistory] = useState<any[]>([]);
-  const [activeCalls, setActiveCalls] = useState<any[]>([]);
-  const [selectedCall, setSelectedCall] = useState('');
-  const [operatorResponse, setOperatorResponse] = useState('');
-  const [conversationView, setConversationView] = useState<any>(null);
+  const [interviewSessions, setInterviewSessions] = useState<any[]>([]);
 
   const makeCall = () => {
     setLoading(true);
@@ -32,8 +29,8 @@ export default function Home() {
           call_sid: data.call_sid
         }]);
         
-        // Enable control
-        fetch(`http://localhost:8080/enable-control/${data.call_sid}`, { method: 'POST' });
+        // Start monitoring interview
+        monitorInterview(data.call_sid);
       } else {
         setMessage(`❌ ${data.error}`);
       }
@@ -51,64 +48,44 @@ export default function Home() {
     }
   };
 
-  const enableControlForCall = async (callSid: string) => {
-    try {
-      await fetch(`http://localhost:8080/enable-control/${callSid}`, {
-        method: 'POST',
-      });
-    } catch (error) {
-      console.error('Failed to enable control:', error);
-    }
-  };
-
-  const fetchActiveCalls = async () => {
-    try {
-      const response = await fetch('http://localhost:8080/active-calls');
-      const data = await response.json();
-      if (data.success) {
-        setActiveCalls(data.active_calls);
+  const monitorInterview = (callSid: string) => {
+    // Start monitoring this interview session
+    const interval = setInterval(async () => {
+      try {
+        const response = await fetch(`http://localhost:8080/interview-status/${callSid}`);
+        const data = await response.json();
+        if (data.success) {
+          // Update or add interview session
+          setInterviewSessions(prev => {
+            const existing = prev.find(session => session.call_sid === callSid);
+            if (existing) {
+              return prev.map(session => 
+                session.call_sid === callSid 
+                  ? { ...session, ...data }
+                  : session
+              );
+            } else {
+              return [...prev, data];
+            }
+          });
+        } else {
+          // Interview ended or not found, stop monitoring
+          clearInterval(interval);
+        }
+      } catch (error) {
+        console.error('Failed to fetch interview status:', error);
       }
-    } catch (error) {
-      console.error('Failed to fetch active calls:', error);
-    }
+    }, 2000); // Check every 2 seconds
+
+    // Clean up interval after 20 minutes (max interview time)
+    setTimeout(() => clearInterval(interval), 20 * 60 * 1000);
   };
 
-  const sendResponse = async () => {
-    if (!selectedCall || !operatorResponse.trim()) return;
-
-    try {
-      await fetch(`http://localhost:8080/send-response/${selectedCall}`, {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/x-www-form-urlencoded',
-        },
-        body: `response=${encodeURIComponent(operatorResponse)}`,
-      });
-      setOperatorResponse('');
-      setMessage('✅ Response sent!');
-    } catch (error) {
-      console.error('Failed to send response:', error);
-      setMessage('❌ Failed to send response');
-    }
+  const clearAllCalls = () => {
+    setInterviewSessions([]);
+    setCallHistory([]);
+    setMessage('✅ All interviews cleared');
   };
-
-  const fetchConversation = async (callSid: string) => {
-    try {
-      const response = await fetch(`http://localhost:8080/get-conversation/${callSid}`);
-      const data = await response.json();
-      if (data.success) {
-        setConversationView(data);
-      }
-    } catch (error) {
-      console.error('Failed to fetch conversation:', error);
-    }
-  };
-
-  // Poll for active calls every 3 seconds
-  useEffect(() => {
-    const interval = setInterval(fetchActiveCalls, 3000);
-    return () => clearInterval(interval);
-  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-8">
@@ -146,9 +123,19 @@ export default function Home() {
             <button
               onClick={makeCall}
               className="w-full bg-blue-600 hover:bg-blue-700 text-white font-semibold py-4 px-6 rounded-lg text-lg"
+              disabled={loading}
             >
-              📞 MAKE CALL
+              {loading ? 'Calling...' : '📞 MAKE CALL'}
             </button>
+
+            {(interviewSessions.length > 0 || callHistory.length > 0) && (
+              <button
+                onClick={clearAllCalls}
+                className="w-full mt-2 bg-red-600 hover:bg-red-700 text-white py-2 px-4 rounded text-sm"
+              >
+                🗑️ Clear All Interviews
+              </button>
+            )}
 
             {message && (
               <div className={`p-4 rounded-lg text-center font-medium ${
@@ -178,84 +165,69 @@ export default function Home() {
             </div>
           )}
 
-          {activeCalls.length > 0 && (
+          {interviewSessions.length > 0 && (
             <div className="mt-8">
-              <h2 className="text-xl font-semibold text-gray-800 mb-4">🎙️ Live Call Control</h2>
+              <h2 className="text-xl font-semibold text-gray-800 mb-4">📋 Live Interviews</h2>
               <div className="space-y-4">
-                {activeCalls.map((call) => (
-                  <div key={call.call_sid} className="p-4 bg-yellow-50 border border-yellow-200 rounded-lg">
-                    <div className="flex justify-between items-start mb-2">
+                {interviewSessions.map((session) => (
+                  <div key={session.call_sid} className="p-4 bg-green-50 border border-green-200 rounded-lg">
+                    <div className="flex justify-between items-start mb-3">
                       <div>
-                        <span className="text-sm font-medium text-yellow-800">Call ID: {call.call_sid.slice(-8)}</span>
-                        {call.waiting_for_response && (
-                          <span className="ml-2 px-2 py-1 bg-red-100 text-red-800 text-xs rounded">
-                            ⏳ Waiting for your response
-                          </span>
-                        )}
+                        <span className="text-sm font-medium text-green-800">
+                          Interview ID: {session.call_sid.slice(-8)}
+                        </span>
+                        <div className="text-xs text-green-600 mt-1">
+                          Question {session.questions_asked}/10 • Average Score: {session.average_score.toFixed(1)}/10
+                        </div>
                       </div>
-                      <button
-                        onClick={() => fetchConversation(call.call_sid)}
-                        className="text-xs bg-blue-100 text-blue-800 px-2 py-1 rounded hover:bg-blue-200"
-                      >
-                        View Full Chat
-                      </button>
+                      {session.waiting_for_answer && (
+                        <span className="px-2 py-1 bg-blue-100 text-blue-800 text-xs rounded">
+                          🎤 Answering...
+                        </span>
+                      )}
                     </div>
-                    
-                    {call.last_user_message && (
+
+                    {session.current_question && (
                       <div className="mb-3">
-                        <p className="text-sm text-gray-600 mb-1">👤 Caller said:</p>
-                        <p className="p-2 bg-gray-100 rounded text-sm">{call.last_user_message}</p>
+                        <p className="text-sm text-gray-600 mb-1">❓ Current Question:</p>
+                        <p className="p-2 bg-white rounded text-sm border">{session.current_question}</p>
                       </div>
                     )}
 
-                    <div className="space-y-2">
-                      <textarea
-                        value={selectedCall === call.call_sid ? operatorResponse : ''}
-                        onChange={(e) => {
-                          setSelectedCall(call.call_sid);
-                          setOperatorResponse(e.target.value);
-                        }}
-                        placeholder="Type your response here..."
-                        className="w-full p-2 border border-gray-300 rounded resize-none"
-                        rows={2}
-                      />
-                      <button
-                        onClick={() => {
-                          setSelectedCall(call.call_sid);
-                          sendResponse();
-                        }}
-                        disabled={!operatorResponse.trim() || selectedCall !== call.call_sid}
-                        className="px-4 py-2 bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-gray-400 text-sm"
-                      >
-                        📤 Send Response
-                      </button>
+                    <div className="grid grid-cols-2 gap-4 text-sm">
+                      <div className="bg-white p-2 rounded border">
+                        <div className="font-medium text-gray-700">Progress</div>
+                        <div className="text-lg font-bold text-green-600">
+                          {session.questions_asked}/10
+                        </div>
+                      </div>
+                      <div className="bg-white p-2 rounded border">
+                        <div className="font-medium text-gray-700">Total Score</div>
+                        <div className="text-lg font-bold text-green-600">
+                          {session.total_score}/{session.questions_asked * 10}
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
 
-          {conversationView && (
-            <div className="mt-8 p-4 bg-gray-50 rounded-lg">
-              <div className="flex justify-between items-center mb-4">
-                <h3 className="text-lg font-semibold text-gray-800">Conversation Log</h3>
-                <button
-                  onClick={() => setConversationView(null)}
-                  className="text-gray-500 hover:text-gray-700"
-                >
-                  ✕
-                </button>
-              </div>
-              <div className="space-y-2 max-h-64 overflow-y-auto">
-                {conversationView.conversation_log?.map((msg: any, idx: number) => (
-                  <div key={idx} className={`p-2 rounded ${
-                    msg.role === 'user' ? 'bg-blue-100 text-blue-800' : 
-                    msg.role === 'assistant' ? 'bg-green-100 text-green-800' : 
-                    'bg-gray-100 text-gray-600'
-                  }`}>
-                    <span className="font-medium capitalize">{msg.role}: </span>
-                    {msg.content}
+                    {session.scores.length > 0 && (
+                      <div className="mt-3">
+                        <p className="text-xs text-gray-600 mb-1">Individual Scores:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {session.scores.map((score: number, idx: number) => (
+                            <span
+                              key={idx}
+                              className={`px-2 py-1 text-xs rounded ${
+                                score >= 8 ? 'bg-green-100 text-green-800' :
+                                score >= 6 ? 'bg-yellow-100 text-yellow-800' :
+                                'bg-red-100 text-red-800'
+                              }`}
+                            >
+                              Q{idx + 1}: {score}/10
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    )}
                   </div>
                 ))}
               </div>
@@ -265,11 +237,11 @@ export default function Home() {
           <div className="mt-8 p-4 bg-blue-50 rounded-lg">
             <h3 className="font-semibold text-blue-800 mb-2">How it works:</h3>
             <ol className="list-decimal list-inside text-sm text-blue-700 space-y-1">
-              <li>Enter a phone number with country code</li>
-              <li>Click &quot;Make Call&quot; to initiate outbound call</li>
-              <li>The person will receive a call from your Twilio number</li>
-              <li>When they answer, they&apos;ll be connected to the AI assistant</li>
-              <li>The AI will conduct the recruitment screening</li>
+              <li>Enter a phone number and click &quot;Make Call&quot;</li>
+              <li>AI conducts JavaScript interview with 10 random questions</li>
+              <li>Each answer is scored 1-10 by OpenAI automatically</li>
+              <li>Real-time progress tracking shows scores and questions</li>
+              <li>Final results with average score provided at end</li>
             </ol>
           </div>
         </div>
