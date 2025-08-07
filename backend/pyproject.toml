@@ -1,7 +1,13 @@
 [project]
-name = "backend"
+name = "recruiter-agent-backend"
 version = "0.1.0"
-description = "Add your description here"
+description = "Voice recruitment screening agent using Twilio"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    "fastapi>=0.104.1",
+    "uvicorn[standard]>=0.24.0",
+    "twilio>=8.10.0",
+    "python-multipart>=0.0.6",
+    "python-dotenv>=1.0.0",
+]
