@@ -5,11 +5,10 @@ import hmac
 import hashlib
 import base64
 from fastapi import WebSocket, WebSocketDisconnect
-from config import TWILIO_AUTH_TOKEN, DOMAIN, SYSTEM_PROMPT
-from services.interview_service import initialize_interview, process_answer, interview_sessions
+from app.config import TWILIO_AUTH_TOKEN, DOMAIN, SYSTEM_PROMPT
+from app.services.interview_service import initialize_interview, process_answer, interview_sessions
 
-# Store active sessions
-sessions = {}
+# No sessions needed - direct control only
 
 def validate_twilio_signature(signature, url, auth_token):
     """Validate Twilio signature for WebSocket security"""
@@ -32,14 +31,7 @@ def validate_twilio_signature(signature, url, auth_token):
         print(f"Signature validation error: {e}")
         return False
 
-async def ai_response(messages, call_sid=None):
-    """Handle JavaScript interview conversation"""
-    if not call_sid or call_sid not in interview_sessions:
-        # Initialize new interview session
-        return initialize_interview(call_sid)
-    
-    user_message = messages[-1].get('content', '') if messages else ''
-    return await process_answer(call_sid, user_message)
+# AI response function removed - using direct interview control only
 
 async def handle_websocket_connection(websocket: WebSocket):
     """Handle WebSocket connection for conversation relay"""
@@ -65,20 +57,30 @@ async def handle_websocket_connection(websocket: WebSocket):
         while True:
             data = await websocket.receive_text()
             message = json.loads(data)
+            print(f"RECEIVED MESSAGE: {message}")
             
             if message["type"] == "setup":
                 call_sid = message["callSid"]
                 print(f"Setup for call: {call_sid}")
                 websocket.call_sid = call_sid
-                sessions[call_sid] = [{"role": "system", "content": SYSTEM_PROMPT}]
+                
+                # NO SESSIONS - we control everything directly
+                # Immediately send OUR welcome message and first question
+                welcome_response = initialize_interview(call_sid)
+                await websocket.send_text(
+                    json.dumps({
+                        "type": "text", 
+                        "token": welcome_response,
+                        "last": True
+                    })
+                )
+                print(f"Sent immediate welcome: {welcome_response}")
                 
             elif message["type"] == "prompt":
                 print(f"Processing prompt: {message['voicePrompt']}")
-                conversation = sessions[websocket.call_sid]
-                conversation.append({"role": "user", "content": message["voicePrompt"]})
                 
-                response = await ai_response(conversation, websocket.call_sid)
-                conversation.append({"role": "assistant", "content": response})
+                # Process user's answer through interview logic
+                response = await process_answer(websocket.call_sid, message['voicePrompt'])
                 
                 await websocket.send_text(
                     json.dumps({
@@ -98,7 +100,6 @@ async def handle_websocket_connection(websocket: WebSocket):
     except WebSocketDisconnect:
         print(f"WebSocket connection closed for call: {call_sid}")
         if call_sid:
-            sessions.pop(call_sid, None)
             # Mark interview as ended if it exists
             if call_sid in interview_sessions:
                 print(f"Interview session ended for {call_sid}")

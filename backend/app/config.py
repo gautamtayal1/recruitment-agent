@@ -18,4 +18,4 @@ OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
 # Interview Configuration
 WELCOME_GREETING = "Welcome to your JavaScript technical interview! Here's how it works: I will ask you 10 random JavaScript questions. Please answer each question to the best of your ability. Take your time to think before answering. Let's begin!"
-SYSTEM_PROMPT = "You are a JavaScript technical interviewer. This conversation is being translated to voice, so answer carefully. When you respond, please spell out all numbers, for example twenty not 20. Do not include emojis in your responses. Do not include bullet points, asterisks, or special symbols. Focus only on asking JavaScript technical questions and processing answers."
+SYSTEM_PROMPT = ""

@@ -2,8 +2,8 @@
 
 import random
 from typing import Dict, Any
-from questions import JS_QUESTIONS
-from services.scoring_service import score_answer
+from app.models.questions import JS_QUESTIONS
+from app.services.scoring_service import score_answer
 
 # Store interview sessions
 interview_sessions: Dict[str, Dict[str, Any]] = {}
@@ -20,7 +20,8 @@ def initialize_interview(call_sid: str) -> str:
         'waiting_for_answer': True
     }
     
-    return f"Question 1: {question}"
+    welcome_message = "Welcome to your JavaScript technical interview! Here's how it works: I will ask you 10 random JavaScript questions. Please answer each question to the best of your ability. Take your time to think before answering. Let's begin! Question 1: {question}"
+    return welcome_message.format(question=question)
 
 async def process_answer(call_sid: str, user_message: str) -> str:
     """Process user's answer and return next question or results"""
@@ -49,7 +50,7 @@ async def process_answer(call_sid: str, user_message: str) -> str:
             if total_percentage >= 50:
                 final_message = f"Thank you! That completes your interview. Congratulations! You've performed well. You will receive a link to book a final interview within 24 hours. Goodbye!"
             else:
-                final_message = f"Thank you! That completes your interview. We appreciate your time. We'll be in touch soon. Goodbye!"
+                final_message = f"Unfortunately, you didn't clear the interview. Thank you for your time. Goodbye!"
             
             # Clean up session
             del interview_sessions[call_sid]
@@ -71,7 +72,7 @@ async def process_answer(call_sid: str, user_message: str) -> str:
             if total_percentage >= 50:
                 final_message = f"Thank you! That completes your interview. Congratulations! You've performed well. You will receive a link to book a final interview within 24 hours. Goodbye!"
             else:
-                final_message = f"Thank you! That completes your interview. We appreciate your time. We'll be in touch soon. Goodbye!"
+                final_message = f"Unfortunately, you didn't clear the interview. Thank you for your time. Goodbye!"
             del interview_sessions[call_sid]
             return final_message
     

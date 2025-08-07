@@ -6,10 +6,10 @@ import uvicorn
 from fastapi import FastAPI, WebSocket
 from fastapi.middleware.cors import CORSMiddleware
 
-from config import PORT
-from routes.call_routes import router as call_router
-from routes.interview_routes import router as interview_router
-from websocket.conversation_handler import handle_websocket_connection
+from app.config import PORT
+from app.routes.call_routes import router as call_router
+from app.routes.interview_routes import router as interview_router
+from app.websocket.conversation_handler import handle_websocket_connection
 
 # Create FastAPI app
 app = FastAPI(

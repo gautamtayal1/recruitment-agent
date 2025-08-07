@@ -1,7 +1,7 @@
 """Routes for handling interview-related endpoints"""
 
 from fastapi import APIRouter
-from services.interview_service import get_interview_status, end_interview
+from app.services.interview_service import get_interview_status, end_interview
 
 router = APIRouter()
 
