@@ -21,7 +21,7 @@ export default function Home() {
     setLoading(true);
     setMessage('Calling...');
     
-    fetch('http://localhost:8080/make-call', {
+    fetch(`${process.env.NEXT_PUBLIC_API_URL}/make-call`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: `phone_number=${phoneNumber}`
@@ -60,7 +60,7 @@ export default function Home() {
     // Start monitoring this interview session
     const interval = setInterval(async () => {
       try {
-        const response = await fetch(`http://localhost:8080/interview-status/${callSid}`);
+        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/interview-status/${callSid}`);
         const data = await response.json();
         if (!data.success) {
           // Interview ended or not found, stop monitoring
@@ -79,9 +79,9 @@ export default function Home() {
   const submitQuickStart = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
-    setMessage('Calling...');
+    setMessage('Setting up questions...');
     try {
-      const res = await fetch('http://localhost:8080/api/setup-interview', {
+      const res = await fetch(`${process.env.NEXT_PUBLIC_API_URL}/api/setup-interview`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ phoneNumber, email }),
@@ -154,6 +154,7 @@ export default function Home() {
               placeholder="candidate@example.com"
               className="input rounded-full h-12 px-4 text-base"
               disabled={loading}
+              required
             />
             <input
               id="phone"
@@ -164,6 +165,7 @@ export default function Home() {
               placeholder="+1 (555) 000-0000"
               className="input rounded-full h-12 px-4 text-base"
               disabled={loading}
+              required
             />
             <button type="submit" disabled={loading} className="btn btn-primary rounded-full h-12 px-6 md:min-w-40">{loading ? 'Calling…' : 'Start call'}</button>
           </form>
