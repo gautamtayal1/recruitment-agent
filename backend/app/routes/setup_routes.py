@@ -21,12 +21,13 @@ class QuestionGenerationRequest(BaseModel):
 
 class InterviewSetupRequest(BaseModel):
     phoneNumber: str
-    email: str
-    language: str
-    customPrompt: str
-    yoe: str
-    passPercentage: int
+    email: Optional[str] = None
+    language: Optional[str] = None
+    customPrompt: Optional[str] = None
+    yoe: Optional[str] = None
+    passPercentage: Optional[int] = 50
     questions: Optional[List[str]] = None
+    meetingLink: Optional[str] = None
 
 @router.post("/api/generate-questions")
 async def generate_questions(request: QuestionGenerationRequest):
@@ -98,19 +99,22 @@ async def generate_questions(request: QuestionGenerationRequest):
 async def setup_interview(request: InterviewSetupRequest):
     """Setup interview configuration and make the call"""
     try:
-        # Validate phone number format
+        # Validate phone number format - phone number is required
         phone = request.phoneNumber.strip()
+        if not phone:
+            return {"success": False, "error": "Phone number is required"}
         if not phone.startswith('+'):
             phone = '+' + phone
             
-        # Create interview configuration
+        # Create interview configuration with defaults
         config = {
-            "email": request.email,
-            "language": request.language,
-            "customPrompt": request.customPrompt,
-            "yoe": request.yoe,
-            "passPercentage": request.passPercentage,
-            "questions": request.questions or []
+            "email": request.email or "candidate@example.com",
+            "language": request.language or "JavaScript", 
+            "customPrompt": request.customPrompt or "General technical interview questions",
+            "yoe": request.yoe or "2-3",
+            "passPercentage": request.passPercentage or 50,
+            "questions": request.questions or [],
+            "meetingLink": request.meetingLink or ""
         }
         
         # Generate a unique interview ID
