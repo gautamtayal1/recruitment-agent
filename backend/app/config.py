@@ -16,6 +16,10 @@ TWILIO_PHONE_NUMBER = os.getenv("TWILIO_PHONE_NUMBER")
 # OpenAI Configuration
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 
+# Gmail Configuration
+GMAIL_USER = os.getenv("GMAIL_USER")
+GMAIL_PASSWORD = os.getenv("GMAIL_PASSWORD")
+
 # Interview Configuration
 WELCOME_GREETING = "Welcome to your JavaScript technical interview! Here's how it works: I will ask you 10 random JavaScript questions. Please answer each question to the best of your ability. Take your time to think before answering. Let's begin!"
 SYSTEM_PROMPT = ""

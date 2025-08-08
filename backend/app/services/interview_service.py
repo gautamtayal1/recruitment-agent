@@ -4,6 +4,7 @@ import random
 from typing import Dict, Any
 from app.models.questions import JS_QUESTIONS
 from app.services.scoring_service import score_answer
+from app.services.email_service import send_interview_selection_email, send_interview_rejection_email
 
 # Store interview sessions
 interview_sessions: Dict[str, Dict[str, Any]] = {}
@@ -72,11 +73,24 @@ async def process_answer(call_sid: str, user_message: str) -> str:
                 
                 # Send email if candidate passes and email is available
                 candidate_email = config.get('email')
-                if candidate_email:
-                    # TODO: Send congratulations email with interview booking link
-                    print(f"Should send email to: {candidate_email}")
+                if candidate_email and candidate_email != "candidate@example.com":
+                    scheduling_link = config.get('meetingLink')
+                    success = send_interview_selection_email(candidate_email, "Candidate", scheduling_link)
+                    if success:
+                        print(f"Interview selection email sent to: {candidate_email}")
+                    else:
+                        print(f"Failed to send email to: {candidate_email}")
             else:
                 final_message = f"Unfortunately, you didn't clear the interview. Thank you for your time. Goodbye!"
+                
+                # Send rejection email if candidate fails and email is available
+                candidate_email = config.get('email')
+                if candidate_email and candidate_email != "candidate@example.com":
+                    success = send_interview_rejection_email(candidate_email)
+                    if success:
+                        print(f"Interview rejection email sent to: {candidate_email}")
+                    else:
+                        print(f"Failed to send rejection email to: {candidate_email}")
             
             # Clean up session
             del interview_sessions[call_sid]
@@ -96,11 +110,34 @@ async def process_answer(call_sid: str, user_message: str) -> str:
             return f"Thank you. Here's question {session['questions_asked']}: {next_question}"
         else:
             # Fallback if we run out of questions
+            config = session.get('config', {})
+            pass_percentage = config.get('passPercentage', 50)
             total_percentage = (session['total_score'] / (len(session['scores']) * 10)) * 100
-            if total_percentage >= 50:
+            
+            if total_percentage >= pass_percentage:
                 final_message = f"Thank you! That completes your interview. Congratulations! You've performed well. You will receive a link to book a final interview within 24 hours. Goodbye!"
+                
+                # Send email if candidate passes and email is available
+                candidate_email = config.get('email')
+                if candidate_email and candidate_email != "candidate@example.com":
+                    scheduling_link = config.get('meetingLink')
+                    success = send_interview_selection_email(candidate_email, "Candidate", scheduling_link)
+                    if success:
+                        print(f"Interview selection email sent to: {candidate_email}")
+                    else:
+                        print(f"Failed to send email to: {candidate_email}")
             else:
                 final_message = f"Unfortunately, you didn't clear the interview. Thank you for your time. Goodbye!"
+                
+                # Send rejection email if candidate fails and email is available
+                candidate_email = config.get('email')
+                if candidate_email and candidate_email != "candidate@example.com":
+                    success = send_interview_rejection_email(candidate_email)
+                    if success:
+                        print(f"Interview rejection email sent to: {candidate_email}")
+                    else:
+                        print(f"Failed to send rejection email to: {candidate_email}")
+            
             del interview_sessions[call_sid]
             return final_message
     

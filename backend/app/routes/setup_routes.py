@@ -106,15 +106,75 @@ async def setup_interview(request: InterviewSetupRequest):
         if not phone.startswith('+'):
             phone = '+' + phone
             
+        # Set default values
+        language = request.language or "JavaScript"
+        custom_prompt = request.customPrompt or f"General technical interview questions for {language}"
+        
+        # Auto-generate questions if none provided
+        questions = request.questions or []
+        if not questions:
+            try:
+                # Generate questions automatically
+                generation_prompt = f"""
+                Generate exactly 50 technical interview questions for {language} programming language.
+                
+                Focus on: {custom_prompt}
+                
+                Requirements:
+                - Mix of theory, practical coding, and problem-solving questions
+                - Appropriate difficulty for technical interviews
+                - Clear, concise questions that can be answered verbally
+                - Cover fundamentals, advanced concepts, and real-world scenarios
+                - No code blocks in questions, just descriptive questions
+                
+                Return as a numbered list of exactly 50 questions.
+                """
+                
+                completion = openai.chat.completions.create(
+                    model="gpt-4o-mini",
+                    messages=[{"role": "user", "content": generation_prompt}]
+                )
+                
+                response_text = completion.choices[0].message.content
+                
+                # Parse the questions from the response
+                generated_questions = []
+                lines = response_text.strip().split('\n')
+                
+                for line in lines:
+                    line = line.strip()
+                    if line and (line[0].isdigit() or line.startswith('-') or line.startswith('*')):
+                        # Clean up the question text
+                        question = line
+                        # Remove numbering patterns
+                        import re
+                        question = re.sub(r'^\d+\.?\s*', '', question)
+                        question = re.sub(r'^[-*]\s*', '', question)
+                        question = question.strip()
+                        
+                        if question and len(question) > 10:  # Valid question
+                            generated_questions.append(question)
+                
+                # Use generated questions if we got at least some
+                if len(generated_questions) >= 20:
+                    questions = generated_questions[:50]  # Take up to 50 questions
+                    print(f"Auto-generated {len(questions)} questions for {language}")
+                else:
+                    print(f"Failed to generate enough questions, using default pool")
+                    
+            except Exception as e:
+                print(f"Error auto-generating questions: {str(e)}")
+                # Fall back to default behavior if generation fails
+        
         # Create interview configuration with defaults
         config = {
             "email": request.email or "candidate@example.com",
-            "language": request.language or "JavaScript", 
-            "customPrompt": request.customPrompt or "General technical interview questions",
+            "language": language, 
+            "customPrompt": custom_prompt,
             "yoe": request.yoe or "2-3",
             "passPercentage": request.passPercentage or 50,
-            "questions": request.questions or [],
-            "meetingLink": request.meetingLink or ""
+            "questions": questions,
+            "meetingLink": request.meetingLink or "https://cal.com/gautam-tayal/sync"
         }
         
         # Generate a unique interview ID

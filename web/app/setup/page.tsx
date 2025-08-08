@@ -17,61 +17,20 @@ export default function InterviewSetup() {
   const [config, setConfig] = useState<InterviewConfig>({
     phoneNumber: '',
     email: '',
-    language: '',
+    language: 'JavaScript',
     customPrompt: '',
     yoe: '',
     passPercentage: 50,
     meetingLink: ''
   })
 
-  const [generatedQuestions, setGeneratedQuestions] = useState<string[]>([])
-  const [isGenerating, setIsGenerating] = useState(false)
   const [isSubmitting, setIsSubmitting] = useState(false)
-  const [showQuestions, setShowQuestions] = useState(false)
 
   const languages = [
     'JavaScript', 'Python', 'Java', 'C++', 'C#', 'Go', 
     'Rust', 'PHP', 'Ruby', 'Swift', 'Kotlin', 'TypeScript'
   ]
 
-  const generateQuestions = async () => {
-    if (!config.customPrompt.trim()) {
-      alert('Please enter a custom prompt or questions first')
-      return
-    }
-    if (!config.language) {
-      alert('Please select a coding language first')
-      return
-    }
-
-    setIsGenerating(true)
-    try {
-      const response = await fetch('http://localhost:8080/api/generate-questions', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          language: config.language,
-          prompt: config.customPrompt
-        })
-      })
-
-      const data = await response.json()
-      
-      if (data.success) {
-        setGeneratedQuestions(data.questions)
-        setShowQuestions(true)
-        setConfig(prev => ({ ...prev, questions: data.questions }))
-      } else {
-        alert('Error: ' + data.error)
-      }
-    } catch (error) {
-      alert('Error: ' + (error as Error).message)
-    } finally {
-      setIsGenerating(false)
-    }
-  }
 
   const submitInterview = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -99,13 +58,11 @@ export default function InterviewSetup() {
         setConfig({
           phoneNumber: '',
           email: '',
-          language: '',
+          language: 'JavaScript',
           customPrompt: '',
           yoe: '',
           passPercentage: 50
         })
-        setGeneratedQuestions([])
-        setShowQuestions(false)
       } else {
         alert('❌ Error: ' + result.error)
       }
@@ -172,18 +129,18 @@ export default function InterviewSetup() {
                 {/* Programming Language */}
                 <div>
                   <label className="label">
-                    Programming Language
+                    Programming Language <span className="text-sm text-slate-500">(editable)</span>
                   </label>
                   <select
-                    className={`input appearance-none bg-[url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23111111' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")] bg-[length:1.25rem_1.25rem] bg-[right_.5rem_center] bg-no-repeat`}
+                    className={`input appearance-none bg-[url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' fill='none' viewBox='0 0 20 20'%3e%3cpath stroke='%23111111' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5' d='M6 8l4 4 4-4'/%3e%3c/svg%3e")] bg-[length:1.25rem_1.25rem] bg-[right_.5rem_center] bg-no-repeat cursor-pointer hover:border-blue-300 focus:border-blue-500`}
                     value={config.language}
                     onChange={(e) => setConfig(prev => ({ ...prev, language: e.target.value }))}
                   >
-                    <option value="">Select a language...</option>
                     {languages.map(lang => (
                       <option key={lang} value={lang}>{lang}</option>
                     ))}
                   </select>
+                  <p className="text-xs text-slate-500 mt-1">Default: JavaScript. Change as needed for your interview focus.</p>
                 </div>
               </div>
 
@@ -201,18 +158,11 @@ export default function InterviewSetup() {
                   <textarea
                     className="input resize-none"
                     rows={4}
-                    placeholder="Example: Focus on React hooks and state management, or provide 2-3 specific questions..."
+                    placeholder="Example: Focus on React hooks and state management, async/await patterns, closures, etc. Leave empty for general questions."
                     value={config.customPrompt}
                     onChange={(e) => setConfig(prev => ({ ...prev, customPrompt: e.target.value }))}
                   />
-                  <button
-                    type="button"
-                    onClick={generateQuestions}
-                    disabled={isGenerating}
-                    className="mt-3 btn btn-primary w-full disabled:opacity-50"
-                  >
-                    {isGenerating ? 'Generating Questions...' : 'Generate 50 Questions'}
-                  </button>
+                  <p className="text-xs text-slate-500 mt-1">50 questions will be automatically generated when the interview starts.</p>
                 </div>
 
                 {/* Meeting Link */}
@@ -272,20 +222,6 @@ export default function InterviewSetup() {
             </div>
           </div>
 
-        {/* Generated Questions Preview */}
-        {showQuestions && (
-          <div className="mt-8 rounded-lg border border-black/10 dark:border-white/10 bg-white/60 dark:bg-slate-900/30 p-4">
-            <h4 className="text-sm font-medium mb-3 text-accent">Generated {generatedQuestions.length} Questions</h4>
-            <div className="max-h-60 overflow-y-auto space-y-2">
-              {generatedQuestions.map((question, index) => (
-                <div key={index} className="text-sm py-2 border-b last:border-b-0 border-[--color-card-border]">
-                  <span className="font-medium mr-2 text-accent">{index + 1}.</span>
-                  {question}
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
 
         {/* Footer */}
         <div className="mt-6 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">

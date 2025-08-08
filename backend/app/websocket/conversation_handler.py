@@ -7,6 +7,7 @@ import base64
 from fastapi import WebSocket, WebSocketDisconnect
 from app.config import TWILIO_AUTH_TOKEN, DOMAIN, SYSTEM_PROMPT
 from app.services.interview_service import initialize_interview, process_answer, interview_sessions
+from app.services.email_service import send_interview_incomplete_email
 
 # No sessions needed - direct control only
 
@@ -102,8 +103,26 @@ async def handle_websocket_connection(websocket: WebSocket):
                 
     except WebSocketDisconnect:
         print(f"WebSocket connection closed for call: {call_sid}")
-        if call_sid:
-            # Mark interview as ended if it exists
-            if call_sid in interview_sessions:
-                print(f"Interview session ended for {call_sid}")
-                del interview_sessions[call_sid]
+        if call_sid and call_sid in interview_sessions:
+            # Get session data before deletion
+            session = interview_sessions[call_sid]
+            questions_answered = len(session.get('scores', []))
+            config = session.get('config', {})
+            candidate_email = config.get('email')
+            
+            print(f"Interview session ended early for {call_sid} - {questions_answered} questions answered")
+            
+            # Send incomplete interview email if candidate email exists and interview was started
+            if (candidate_email and 
+                candidate_email != "candidate@example.com" and 
+                questions_answered > 0 and 
+                questions_answered < 10):
+                
+                success = send_interview_incomplete_email(candidate_email, "Candidate", questions_answered)
+                if success:
+                    print(f"Incomplete interview email sent to: {candidate_email}")
+                else:
+                    print(f"Failed to send incomplete interview email to: {candidate_email}")
+            
+            # Clean up session
+            del interview_sessions[call_sid]
