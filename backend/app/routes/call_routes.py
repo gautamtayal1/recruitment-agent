@@ -30,11 +30,16 @@ async def make_outbound_call(phone_number: str = Form(...)):
 @router.post("/outbound-twiml")
 async def outbound_twiml_endpoint(interview_id: str = None):
     """TwiML for outbound calls - uses ConversationRelay with proper control"""
+    # Add interview_id as query parameter if available
+    ws_url = WS_URL
+    if interview_id:
+        ws_url = f"{WS_URL}?interview_id={interview_id}"
+    
     xml_response = f"""<?xml version="1.0" encoding="UTF-8"?>
     <Response>
       <Connect>
         <ConversationRelay 
-            url="{WS_URL}"
+            url="{ws_url}"
             welcomeGreeting=""
             welcomeGreetingInterruptible="none"
             interruptible="speech"

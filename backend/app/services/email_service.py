@@ -64,6 +64,10 @@ This is an automated message. Please do not reply to this email.
         msg.attach(MIMEText(body, 'plain'))
         
         # Gmail SMTP server setup
+        if not GMAIL_USER or not GMAIL_PASSWORD:
+            print("Gmail credentials not configured, skipping email")
+            return False
+            
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()  # Enable encryption
         server.login(GMAIL_USER, GMAIL_PASSWORD)
@@ -121,6 +125,10 @@ This is an automated message. Please do not reply to this email.
         msg.attach(MIMEText(body, 'plain'))
         
         # Gmail SMTP server setup
+        if not GMAIL_USER or not GMAIL_PASSWORD:
+            print("Gmail credentials not configured, skipping email")
+            return False
+            
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()  # Enable encryption
         server.login(GMAIL_USER, GMAIL_PASSWORD)
@@ -184,6 +192,10 @@ This is an automated message. You can reply to this email to reschedule your int
         msg.attach(MIMEText(body, 'plain'))
         
         # Gmail SMTP server setup
+        if not GMAIL_USER or not GMAIL_PASSWORD:
+            print("Gmail credentials not configured, skipping email")
+            return False
+            
         server = smtplib.SMTP('smtp.gmail.com', 587)
         server.starttls()  # Enable encryption
         server.login(GMAIL_USER, GMAIL_PASSWORD)

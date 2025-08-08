@@ -9,15 +9,6 @@ interface CallHistoryItem {
   call_sid: string;
 }
 
-interface InterviewSession {
-  call_sid: string;
-  questions_asked: number;
-  total_score: number;
-  average_score: number;
-  current_question: string;
-  scores: number[];
-  waiting_for_answer: boolean;
-}
 
 export default function Home() {
   const [phoneNumber, setPhoneNumber] = useState('+919991422233');
@@ -25,7 +16,6 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState('');
   const [callHistory, setCallHistory] = useState<CallHistoryItem[]>([]);
-  const [interviewSessions, setInterviewSessions] = useState<InterviewSession[]>([]);
 
   const makeCall = () => {
     setLoading(true);
@@ -72,21 +62,7 @@ export default function Home() {
       try {
         const response = await fetch(`http://localhost:8080/interview-status/${callSid}`);
         const data = await response.json();
-        if (data.success) {
-          // Update or add interview session
-          setInterviewSessions(prev => {
-            const existing = prev.find(session => session.call_sid === callSid);
-            if (existing) {
-              return prev.map(session => 
-                session.call_sid === callSid 
-                  ? { ...session, ...data }
-                  : session
-              );
-            } else {
-              return [...prev, data];
-            }
-          });
-        } else {
+        if (!data.success) {
           // Interview ended or not found, stop monitoring
           clearInterval(interval);
         }
@@ -99,11 +75,6 @@ export default function Home() {
     setTimeout(() => clearInterval(interval), 20 * 60 * 1000);
   };
 
-  const clearAllCalls = () => {
-    setInterviewSessions([]);
-    setCallHistory([]);
-    setMessage('✅ All interviews cleared');
-  };
 
   const submitQuickStart = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -131,7 +102,7 @@ export default function Home() {
       } else {
         setMessage(`❌ ${data.error}`);
       }
-    } catch (err) {
+    } catch {
       setMessage('❌ Network error');
     } finally {
       setLoading(false);
@@ -196,12 +167,6 @@ export default function Home() {
             />
             <button type="submit" disabled={loading} className="btn btn-primary rounded-full h-12 px-6 md:min-w-40">{loading ? 'Calling…' : 'Start call'}</button>
           </form>
-          <div className="mt-2 flex items-center justify-between">
-            <p className="text-xs text-slate-500">We’ll email results to this address. Include country code.</p>
-            {(interviewSessions.length > 0 || callHistory.length > 0) && (
-              <button onClick={clearAllCalls} className="btn btn-danger text-xs px-3 py-1">Clear all</button>
-            )}
-          </div>
           {message && (
             <div className={`mt-3 rounded-md px-3 py-2 text-sm ${message.startsWith('✅') ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-900/30 dark:text-emerald-200' : 'bg-rose-100 text-rose-800 dark:bg-rose-900/30 dark:text-rose-200'}`}>
               {message}

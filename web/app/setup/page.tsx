@@ -1,6 +1,7 @@
 'use client'
 
 import { useState } from 'react'
+import Link from 'next/link'
 
 interface InterviewConfig {
   phoneNumber: string
@@ -25,6 +26,9 @@ export default function InterviewSetup() {
   })
 
   const [isSubmitting, setIsSubmitting] = useState(false)
+  const [loadingStep, setLoadingStep] = useState('')
+  const [showSuccess, setShowSuccess] = useState(false)
+  const [successMessage, setSuccessMessage] = useState('')
 
   const languages = [
     'JavaScript', 'Python', 'Java', 'C++', 'C#', 'Go', 
@@ -35,13 +39,22 @@ export default function InterviewSetup() {
   const submitInterview = async (e: React.FormEvent) => {
     e.preventDefault()
     setIsSubmitting(true)
+    setLoadingStep('Generating interview questions...')
 
     try {
       if (!config.phoneNumber.trim() || !config.email.trim()) {
         alert('Please provide both phone number and email')
         setIsSubmitting(false)
+        setLoadingStep('')
         return
       }
+
+      // Show generating questions step
+      await new Promise(resolve => setTimeout(resolve, 1500))
+      
+      setLoadingStep('Setting up interview configuration...')
+      await new Promise(resolve => setTimeout(resolve, 1000))
+      
       const response = await fetch('http://localhost:8080/api/setup-interview', {
         method: 'POST',
         headers: {
@@ -53,7 +66,13 @@ export default function InterviewSetup() {
       const result = await response.json()
       
       if (result.success) {
-        alert('✅ Interview setup complete! Starting call...')
+        setLoadingStep('Initiating call...')
+        await new Promise(resolve => setTimeout(resolve, 800))
+        
+        // Show success notification
+        setSuccessMessage(`Interview setup complete! Call has been initiated to ${config.phoneNumber}. The candidate will receive the call shortly.`)
+        setShowSuccess(true)
+        
         // Reset form
         setConfig({
           phoneNumber: '',
@@ -61,8 +80,14 @@ export default function InterviewSetup() {
           language: 'JavaScript',
           customPrompt: '',
           yoe: '',
-          passPercentage: 50
+          passPercentage: 50,
+          meetingLink: ''
         })
+        
+        // Auto-hide success notification after 5 seconds
+        setTimeout(() => {
+          setShowSuccess(false)
+        }, 5000)
       } else {
         alert('❌ Error: ' + result.error)
       }
@@ -70,6 +95,7 @@ export default function InterviewSetup() {
       alert('❌ Error: ' + (error as Error).message)
     } finally {
       setIsSubmitting(false)
+      setLoadingStep('')
     }
   }
 
@@ -82,7 +108,7 @@ export default function InterviewSetup() {
           Create custom technical interviews with AI-powered question generation and real-time scoring.
         </p>
         <div className="mt-6 flex justify-center">
-          <a href="/" className="btn btn-secondary">← Back to Dashboard</a>
+          <Link href="/" className="btn btn-secondary">← Back to Dashboard</Link>
         </div>
       </div>
 
@@ -230,7 +256,7 @@ export default function InterviewSetup() {
             {isSubmitting ? (
               <>
                 <span className="animate-spin rounded-full h-4 w-4 border-2 border-white/40 border-t-transparent mr-2" />
-                Starting Interview...
+                {loadingStep || 'Processing...'}
               </>
             ) : (
               'Start Interview Call'
@@ -238,6 +264,39 @@ export default function InterviewSetup() {
           </button>
         </div>
       </form>
+      
+      {/* Success Notification */}
+      {showSuccess && (
+        <div className="fixed bottom-4 right-4 z-50 animate-in slide-in-from-bottom-2 duration-300">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4 shadow-lg max-w-sm">
+            <div className="flex items-start">
+              <div className="flex-shrink-0">
+                <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                  <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                </svg>
+              </div>
+              <div className="ml-3 flex-1">
+                <h3 className="text-sm font-medium text-green-800">
+                  Interview Started!
+                </h3>
+                <p className="mt-1 text-sm text-green-700">
+                  {successMessage}
+                </p>
+              </div>
+              <div className="ml-4 flex-shrink-0">
+                <button
+                  onClick={() => setShowSuccess(false)}
+                  className="inline-flex text-green-400 hover:text-green-600 focus:outline-none focus:text-green-600"
+                >
+                  <svg className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }

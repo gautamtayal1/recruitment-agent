@@ -7,6 +7,7 @@ from openai import OpenAI
 from twilio.rest import Client
 
 from app.config import OPENAI_API_KEY, TWILIO_ACCOUNT_SID, TWILIO_AUTH_TOKEN, TWILIO_PHONE_NUMBER, DOMAIN
+from app.models.questions import JS_QUESTIONS
 
 router = APIRouter()
 openai = OpenAI(api_key=OPENAI_API_KEY)
@@ -160,11 +161,19 @@ async def setup_interview(request: InterviewSetupRequest):
                     questions = generated_questions[:50]  # Take up to 50 questions
                     print(f"Auto-generated {len(questions)} questions for {language}")
                 else:
-                    print(f"Failed to generate enough questions, using default pool")
+                    print(f"Failed to generate enough questions, falling back to default JS questions")
+                    questions = JS_QUESTIONS
                     
             except Exception as e:
-                print(f"Error auto-generating questions: {str(e)}")
-                # Fall back to default behavior if generation fails
+                print(f"Error auto-generating questions: {str(e)}, falling back to default JS questions")
+                questions = JS_QUESTIONS
+        
+        # Ensure we always have questions
+        if not questions or len(questions) == 0:
+            print("WARNING: No questions available, using default JS questions as final fallback")
+            questions = JS_QUESTIONS
+            
+        print(f"Final questions count: {len(questions)}")
         
         # Create interview configuration with defaults
         config = {

@@ -18,27 +18,68 @@ def set_interview_config(interview_id: str, config: Dict[str, Any]):
 
 def initialize_interview(call_sid: str, interview_id: str = None) -> str:
     """Initialize a new interview session"""
-    # Get custom configuration if available
-    config = custom_configs.get(interview_id, {}) if interview_id else {}
-    
-    # Use custom questions if available, otherwise default to JS questions
-    questions_pool = config.get('questions', JS_QUESTIONS)
-    language = config.get('language', 'JavaScript')
-    
-    question = random.choice(questions_pool)
-    interview_sessions[call_sid] = {
-        'questions_asked': 1,
-        'total_score': 0,
-        'current_question': question,
-        'used_questions': [question],
-        'scores': [],
-        'waiting_for_answer': True,
-        'config': config,
-        'interview_id': interview_id
-    }
-    
-    welcome_message = f"Welcome to your {language} technical interview! Here's how it works: I will ask you 10 random {language} questions. Please answer each question to the best of your ability. Take your time to think before answering. Let's begin! Question 1: {{question}}"
-    return welcome_message.format(question=question)
+    try:
+        print(f"DEBUG: Initializing interview for call_sid={call_sid}, interview_id={interview_id}")
+        print(f"DEBUG: Available custom_configs keys: {list(custom_configs.keys())}")
+        
+        # Get custom configuration if available
+        config = custom_configs.get(interview_id, {}) if interview_id else {}
+        print(f"DEBUG: Retrieved config: {config}")
+        
+        # If interview_id provided but no config found, this might be the issue
+        if interview_id and not config:
+            print(f"ERROR: interview_id '{interview_id}' provided but no configuration found!")
+            print("This usually means the setup API didn't properly store the config")
+            # Fall back to default config
+            config = {
+                'language': 'JavaScript',
+                'questions': JS_QUESTIONS,
+                'email': 'unknown@example.com'
+            }
+        
+        # Use custom questions if available, otherwise default to JS questions
+        questions_pool = config.get('questions', JS_QUESTIONS)
+        language = config.get('language', 'JavaScript')
+        
+        # Ensure we have questions to choose from
+        if not questions_pool or len(questions_pool) == 0:
+            questions_pool = JS_QUESTIONS
+            print(f"Warning: Empty questions pool for interview_id {interview_id}, using default JS questions")
+        
+        print(f"DEBUG: Using {len(questions_pool)} questions for {language} interview")
+        
+        question = random.choice(questions_pool)
+        interview_sessions[call_sid] = {
+            'questions_asked': 1,
+            'total_score': 0,
+            'current_question': question,
+            'used_questions': [question],
+            'scores': [],
+            'waiting_for_answer': True,
+            'config': config,
+            'interview_id': interview_id
+        }
+        
+        welcome_message = f"Welcome to your {language} technical interview! Here's how it works: I will ask you 10 random {language} questions. Please answer each question to the best of your ability. Take your time to think before answering. If you pass the required score, you will receive an email to schedule a call with HR. Let's begin! Question 1: {{question}}"
+        result = welcome_message.format(question=question)
+        print(f"DEBUG: Successfully initialized interview, returning: {result[:100]}...")
+        return result
+        
+    except Exception as e:
+        print(f"CRITICAL ERROR in initialize_interview: {str(e)}")
+        print(f"Error type: {type(e).__name__}")
+        import traceback
+        print(f"Traceback: {traceback.format_exc()}")
+        
+        # Emergency fallback
+        try:
+            question = random.choice(JS_QUESTIONS)
+            emergency_message = f"Welcome to your technical interview! Question 1: {question}"
+            print(f"EMERGENCY FALLBACK: Returning basic message")
+            return emergency_message
+        except Exception as emergency_error:
+            print(f"EMERGENCY FALLBACK ALSO FAILED: {str(emergency_error)}")
+            return "Welcome to your technical interview. Please wait while we prepare your first question."
 
 async def process_answer(call_sid: str, user_message: str) -> str:
     """Process user's answer and return next question or results"""
